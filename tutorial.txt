@@ -1,0 +1,188 @@
+####################################    FOR SETUP    ####################################
+
+
+
+
+	Add Elasticsearch GPG Key:
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+
+
+	Add Elasticsearch Repository:
+sudo sh -c 'echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" > /etc/apt/sources.list.d/elastic-7.x.list'
+
+	Update Package Lists:
+sudo apt-get update
+
+
+	Install Elasticsearch:
+sudo apt-get install elasticsearch
+
+
+
+	Configure Elasticsearch - Start Service:
+sudo systemctl start elasticsearch.service
+
+
+
+	Configure Elasticsearch - Enable Auto-Start on Boot:
+sudo systemctl enable elasticsearch.service
+
+
+
+	Check Elasticsearch Status:
+sudo systemctl status elasticsearch
+
+
+
+	Stop Elasticsearch (Optional):
+sudo systemctl stop elasticsearch.service
+
+
+
+	Disable Elasticsearch Auto-Start (Optional):
+sudo systemctl disable elasticsearch.service
+
+
+
+-------------------------------------------------------------------------------------------------------------
+
+####################################    FOR SETTING.PY    ####################################
+
+
+
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'BlogApp',
+    'rest_framework',
+    'django_elasticsearch_dsl',
+    'django_elasticsearch_dsl_drf'
+]
+
+
+ELASTICSEARCH_DSL = {
+    'default': {
+        'hosts': 'http://localhost:9200'
+    },
+}
+
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------
+
+####################################    FOR DOCUMENT.PY    ####################################
+
+
+
+from django_elasticsearch_dsl import Index, Document, fields
+from elasticsearch_dsl import analyzer
+
+from .models import Blog
+
+# Define the Elasticsearch index
+PUBLISHER_INDEX = Index('elastic_demo')
+
+PUBLISHER_INDEX.settings(
+    number_of_shards=1,
+    number_of_replicas=1
+)
+
+# Define the Elasticsearch document
+@PUBLISHER_INDEX.doc_type
+class BlogsDocument(Document):
+    id = fields.IntegerField(attr='id')
+    title = fields.TextField(
+        fields={
+            'raw': {
+                'type': 'keyword'
+            }
+        }
+    )
+    content = fields.TextField(
+        fields={
+            'raw': {
+                'type': 'keyword'
+            }
+        }
+    )
+
+    class Django:
+        model = Blog
+
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------
+
+####################################    FOR SERIALIZER.PY    ####################################
+
+
+
+
+class BlogDocumentSerializer(DocumentSerializer):
+    class Meta:
+        model = Blog
+        document = BlogsDocument
+        fields = ['title', 'content']
+
+
+        def get_location(self, obj):
+            try:
+                return obj.location.to_dict()
+            except:
+                return {}
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------
+
+####################################    FOR VIEWS.PY    ####################################
+
+
+
+
+from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
+from django_elasticsearch_dsl_drf.filter_backends import (
+    FilteringFilterBackend,
+    CompoundSearchFilterBackend
+)
+
+
+
+
+class BlogElasticSearch(DocumentViewSet):
+    document = BlogsDocument
+    serializer_class = BlogDocumentSerializer
+    filter_backends = [
+        FilteringFilterBackend,
+        CompoundSearchFilterBackend
+    ]
+    search_fields = (
+        'title',
+        'content'
+    )
+    multi_match_search_field = ('title', 'content')
+    filter_fields = {
+        'title': 'title',
+        'content': 'content'
+    }
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------
+
+
+
